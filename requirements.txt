@@ -1,10 +1,10 @@
-streamlit==1.25.0       # or the latest stable version you are using
-pandas==2.0.3           # specify the version you are using or the latest
-yfinance==0.2.30        # the version might be different, specify accordingly
-riskfolio-lib==3.3.0    # specify the exact version you are using
-matplotlib==3.8.0       # specify the version you are using
-numpy==1.25.0           # make sure the version matches your environment
-seaborn==0.12.2         # specify the exact version you are using
-scipy==1.11.2           # specify the version you are using
-pandas-datareader==0.10.0   # specify the version you are using
-plotly==5.16.0          # the version of plotly you are using
+streamlit
+pandas
+yfinance
+riskfolio-lib
+matplotlib
+numpy
+seaborn
+scipy
+pandas-datareader
+plotly
