@@ -7,8 +7,6 @@ import numpy as np
 from datetime import datetime, timedelta
 import seaborn as sns
 from scipy.stats import norm
-import pandas_datareader as pdr
-import plotly.graph_objects as go
 import warnings
 warnings.filterwarnings("ignore")
 import os
@@ -342,9 +340,6 @@ if not portfolios.empty:
                 # Calculate performance metrics
                 metrics = ['Total Return', 'Annualized Return', 'Standard Deviation', 'Sharpe Ratio', 'Sortino Ratio', 'Calmar Ratio', 'CVar', 'Maximum Drawdown', 'Kurtosis', 'Skewness']
                 performance_df = pd.DataFrame(index=metrics, columns=benchmarks + ['HRP Portfolio'])
-
-                rf_data = pdr.get_data_fred('DGS1MO', start=start, end=end).interpolate()
-                rf = rf_data.iloc[-1, 0] / 100  # Last available 1-Month Treasury rate as risk-free rate
 
                 N = 252
 
