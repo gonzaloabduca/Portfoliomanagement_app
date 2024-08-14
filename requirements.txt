@@ -6,5 +6,4 @@ matplotlib
 numpy
 seaborn
 scipy
-pandas-datareader
 plotly
