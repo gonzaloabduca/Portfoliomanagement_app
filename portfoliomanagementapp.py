@@ -7,10 +7,80 @@ import numpy as np
 from datetime import datetime, timedelta
 import seaborn as sns
 from scipy.stats import norm
+import pandas_datareader as pdr
+import plotly.graph_objects as go
 import warnings
 warnings.filterwarnings("ignore")
 import os
 
+import streamlit as st
+
+# # Function to handle user registration
+# def register_user(username, email, password):
+#     # Placeholder: Store the user's credentials in a session state for now
+#     # In a real app, you should store this data in a database securely
+#     st.session_state['username'] = username
+#     st.session_state['email'] = email
+#     st.session_state['password'] = password
+#     st.session_state['authenticated'] = True
+#     st.success(f"User {username} registered successfully!")
+#     st.experimental_rerun()
+
+# # Function to handle user login
+# def login_user(username, password):
+#     # For demonstration, we'll check against the session state data
+#     # In a real app, you should verify against hashed credentials stored in a database
+#     if username == st.session_state.get('username') and password == st.session_state.get('password'):
+#         st.session_state['authenticated'] = True
+#         st.success(f"Welcome back, {username}!")
+#         st.experimental_rerun()
+#     else:
+#         st.error("Invalid username or password")
+
+# # Registration/Login Page
+# def auth_page():
+#     st.title("Welcome! Please Register or Log In")
+
+#     # Tabs for registration and login
+#     tab1, tab2 = st.tabs(["Register", "Log In"])
+
+#     with tab1:
+#         st.subheader("Register")
+#         username = st.text_input("Choose a Username")
+#         email = st.text_input("Enter your Email")
+#         password = st.text_input("Create a Password", type="password")
+#         if st.button("Register"):
+#             if username and email and password:
+#                 register_user(username, email, password)
+#             else:
+#                 st.error("Please fill out all fields")
+
+#     with tab2:
+#         st.subheader("Log In")
+#         username = st.text_input("Username", key="login_username")
+#         password = st.text_input("Password", type="password", key="login_password")
+#         if st.button("Log In"):
+#             if username and password:
+#                 login_user(username, password)
+#             else:
+#                 st.error("Please enter both username and password")
+
+# # Main Application Page
+# def main_page():
+#     st.title("Main Page")
+#     st.write(f"Hello, {st.session_state['username']}!")
+#     # The rest of your main app code goes here
+
+# # Main function that controls the app flow
+# def main():
+#     # Check if the user is authenticated
+#     if 'authenticated' not in st.session_state or not st.session_state['authenticated']:
+#         auth_page()  # Show the authentication page
+#     else:
+#         main_page()  # Show the main application
+
+# if __name__ == "__main__":
+#     main()
 
 # Set up the app
 st.title("Portfolio Management and Analysis App")
@@ -199,19 +269,19 @@ if not portfolios.empty:
     if selected_portfolio:
         tickers = portfolios[portfolios["Portfolio Name"] == selected_portfolio]["Tickers"].values[0]
         stock_data = fetch_stock_data(tickers)
-        st.write(f"## Stock Data for {selected_portfolio}")
-        st.dataframe(stock_data)
+        #st.write(f"## Stock Data for {selected_portfolio}")
+        #st.dataframe(stock_data)
 
         # Plot the data
-        st.write("### Price Trends")
-        plt.figure(figsize=(10, 5))
-        for column in stock_data.columns:
-            plt.plot(stock_data.index, stock_data[column], label=column)
-        plt.legend()
-        plt.title(f"Stock Price Trends for {selected_portfolio}")
-        plt.xlabel("Date")
-        plt.ylabel("Adjusted Close Price")
-        st.pyplot(plt)
+        #st.write("### Price Trends")
+        #plt.figure(figsize=(10, 5))
+        #for column in stock_data.columns:
+        #    plt.plot(stock_data.index, stock_data[column], label=column)
+        #plt.legend()
+        #plt.title(f"Stock Price Trends for {selected_portfolio}")
+        #plt.xlabel("Date")
+        #plt.ylabel("Adjusted Close Price")
+        #st.pyplot(plt)
 
         # Calculate returns
         returns = stock_data.pct_change().dropna()
@@ -340,6 +410,9 @@ if not portfolios.empty:
                 # Calculate performance metrics
                 metrics = ['Total Return', 'Annualized Return', 'Standard Deviation', 'Sharpe Ratio', 'Sortino Ratio', 'Calmar Ratio', 'CVar', 'Maximum Drawdown', 'Kurtosis', 'Skewness']
                 performance_df = pd.DataFrame(index=metrics, columns=benchmarks + ['HRP Portfolio'])
+
+                rf_data = pdr.get_data_fred('DGS1MO', start=start, end=end).interpolate()
+                rf = rf_data.iloc[-1, 0] / 100  # Last available 1-Month Treasury rate as risk-free rate
 
                 N = 252
 
@@ -679,9 +752,6 @@ if not portfolios.empty:
             # Calculate portfolio standard deviation (annualized) using optimized weights
             portfolio_std = np.sqrt(np.dot(weights.T, np.dot(returns.cov() * 252, weights)))
 
-            st.write(f"Portfolio Standard Deviation (Annualized): {portfolio_std.item():.2%}")
-            st.write(f"Average Single Asset Standard Deviation: {average_asset_std:.2%}")
-
             # Create a DataFrame to hold the additional information
             weight_df = pd.DataFrame(weights, columns=["weights"])
             weight_df["weights"] = weight_df["weights"] * 100
@@ -701,7 +771,25 @@ if not portfolios.empty:
 
             tickers_info_df = pd.DataFrame(tickers_info)
             weight_df = weight_df.merge(tickers_info_df, left_index=True, right_on="Ticker")
+            latest_prices = stock_data.iloc[-1].transpose()
+            # Merge prices into the weight_df
+            weight_df = weight_df.merge(latest_prices, left_on="Ticker", right_index=True)
+            weight_df.rename(columns={weight_df.columns[-1]: "Price"}, inplace=True)
+
+            # Input for the total capital to deploy
+            total_capital = st.number_input("Total Capital to Deploy ($)", min_value=0.0, step=1000.0, value=10000.0)
+
+            # Calculate 'Capital to deploy' and '# of shares'
+            weight_df["Capital to Deploy"] = (weight_df["weights"].str.rstrip('%').astype('float') / 100) * total_capital
+            weight_df["# of Shares"] = (weight_df["Capital to Deploy"] / weight_df["Price"]).apply(lambda x: int(x)).round(2)
+            weight_df.sort_values(by='weights', ascending=False, inplace=True)
+            # Display the updated table
+            st.write("### Portfolio Composition with Capital Deployment")
             st.table(weight_df)
+
+            st.write(f"###### Portfolio Standard Deviation (Annualized): {portfolio_std.item():.2%}")
+            st.write(f"###### Average Single Asset Standard Deviation: {average_asset_std:.2%}")
+            st.write(f"###### Average Correlation Between Assets: {avg_corr: .2%}")
 
             # Plot the historical compounded cumulative returns of the portfolio
             st.write("### Historical Compounded Cumulative Returns")
@@ -730,10 +818,7 @@ if not portfolios.empty:
             ax.grid()
             fig.tight_layout()
             st.pyplot(fig)
-            
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy.stats import norm
+        
 
 # Section for computing and plotting the Holy Grail of Investing
 st.header("Holy Grail of Investing")
