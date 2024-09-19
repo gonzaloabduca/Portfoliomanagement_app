@@ -4,82 +4,13 @@ import yfinance as yf
 import riskfolio as rp
 import matplotlib.pyplot as plt
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime
 import seaborn as sns
 from scipy.stats import norm
-import plotly.graph_objects as go
 import warnings
-warnings.filterwarnings("ignore")
 import os
 
-import streamlit as st
-
-# # Function to handle user registration
-# def register_user(username, email, password):
-#     # Placeholder: Store the user's credentials in a session state for now
-#     # In a real app, you should store this data in a database securely
-#     st.session_state['username'] = username
-#     st.session_state['email'] = email
-#     st.session_state['password'] = password
-#     st.session_state['authenticated'] = True
-#     st.success(f"User {username} registered successfully!")
-#     st.experimental_rerun()
-
-# # Function to handle user login
-# def login_user(username, password):
-#     # For demonstration, we'll check against the session state data
-#     # In a real app, you should verify against hashed credentials stored in a database
-#     if username == st.session_state.get('username') and password == st.session_state.get('password'):
-#         st.session_state['authenticated'] = True
-#         st.success(f"Welcome back, {username}!")
-#         st.experimental_rerun()
-#     else:
-#         st.error("Invalid username or password")
-
-# # Registration/Login Page
-# def auth_page():
-#     st.title("Welcome! Please Register or Log In")
-
-#     # Tabs for registration and login
-#     tab1, tab2 = st.tabs(["Register", "Log In"])
-
-#     with tab1:
-#         st.subheader("Register")
-#         username = st.text_input("Choose a Username")
-#         email = st.text_input("Enter your Email")
-#         password = st.text_input("Create a Password", type="password")
-#         if st.button("Register"):
-#             if username and email and password:
-#                 register_user(username, email, password)
-#             else:
-#                 st.error("Please fill out all fields")
-
-#     with tab2:
-#         st.subheader("Log In")
-#         username = st.text_input("Username", key="login_username")
-#         password = st.text_input("Password", type="password", key="login_password")
-#         if st.button("Log In"):
-#             if username and password:
-#                 login_user(username, password)
-#             else:
-#                 st.error("Please enter both username and password")
-
-# # Main Application Page
-# def main_page():
-#     st.title("Main Page")
-#     st.write(f"Hello, {st.session_state['username']}!")
-#     # The rest of your main app code goes here
-
-# # Main function that controls the app flow
-# def main():
-#     # Check if the user is authenticated
-#     if 'authenticated' not in st.session_state or not st.session_state['authenticated']:
-#         auth_page()  # Show the authentication page
-#     else:
-#         main_page()  # Show the main application
-
-# if __name__ == "__main__":
-#     main()
+warnings.filterwarnings("ignore")
 
 # Set up the app
 st.title("Portfolio Management and Analysis App")
@@ -117,19 +48,20 @@ def delete_portfolio(portfolio_name):
     portfolios.to_csv("portfolios.csv", index=False)
     st.success(f"Portfolio '{portfolio_name}' deleted!")
 
+# Function to create a default Magnificent 7 portfolio if none exist
+def create_default_portfolio():
+    default_portfolio_name = "Magnificent 7"
+    default_tickers = "AAPL, MSFT, NVDA, AMZN, TSLA, GOOG, META"
+    save_portfolio(default_portfolio_name, default_tickers)
+    st.success(f"Default portfolio '{default_portfolio_name}' created with tickers {default_tickers}.")
+
 # Function to make covariance matrix positive definite
 def make_positive_definite(cov_matrix):
     """ Adjusts the covariance matrix to ensure it is positive definite """
-    # Compute the eigenvalues and eigenvectors
     eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)
-    
-    # Adjust eigenvalues: set any eigenvalues less than a small threshold to a small positive number
     min_eigenvalue = 1e-10
     adjusted_eigenvalues = np.maximum(eigenvalues, min_eigenvalue)
-    
-    # Reconstruct the covariance matrix
     adjusted_cov_matrix = np.dot(eigenvectors, np.dot(np.diag(adjusted_eigenvalues), eigenvectors.T))
-    
     return adjusted_cov_matrix
 
 # Function to calculate portfolio standard deviation based on the number of assets
@@ -192,13 +124,18 @@ def calculate_portfolio_metrics(returns, N=252, rf=0.01):
 
     return metrics
 
-
 # Display saved portfolios
 st.header("Select a Portfolio")
 portfolios = load_portfolios()
+
+# Check if there are no portfolios saved and create default
+if portfolios.empty:
+    st.warning("No portfolios saved yet.")
+    create_default_portfolio()
+    portfolios = load_portfolios()  # Reload after creating default
+
 if not portfolios.empty:
     with st.expander("Saved Portfolios"):
-        # Scrollable section for portfolios
         st.markdown(
             """
             <style>
@@ -207,12 +144,9 @@ if not portfolios.empty:
                 overflow-y: scroll;
             }
             </style>
-            """,
-            unsafe_allow_html=True,
-        )
+            """, unsafe_allow_html=True)
 
         st.markdown('<div class="scrollable-portfolios">', unsafe_allow_html=True)
-
         for index, row in portfolios.iterrows():
             col1, col2, col3 = st.columns([6, 1, 1])
             col1.write(row["Portfolio Name"])
@@ -221,11 +155,10 @@ if not portfolios.empty:
             if col3.button("Delete", key=f"delete_{index}"):
                 delete_portfolio(row["Portfolio Name"])
                 st.experimental_rerun()
-
         st.markdown('</div>', unsafe_allow_html=True)
 
-        if st.button("+ Create New Portfolio"):
-            st.session_state.create_new = True
+    if st.button("+ Create New Portfolio"):
+        st.session_state["create_new"] = True
 
 # Create input form for new portfolio
 if st.session_state.get("create_new", False):
@@ -239,28 +172,35 @@ if st.session_state.get("create_new", False):
             if portfolio_name and tickers:
                 save_portfolio(portfolio_name, tickers)
                 st.success(f"Portfolio '{portfolio_name}' saved!")
-                st.session_state.create_new = False
+                st.session_state["create_new"] = False
                 st.experimental_rerun()  # Refresh the app to show updated portfolio list
             else:
                 st.error("Please provide both portfolio name and ticker symbols.")
 
 # Edit portfolio functionality
-if "edit_portfolio" in st.session_state:
+if "edit_portfolio" in st.session_state and st.session_state.edit_portfolio:
     st.header(f"Edit Portfolio: {st.session_state.edit_portfolio}")
-    with st.form("edit_form"):
-        edit_name = st.session_state.edit_portfolio
-        current_tickers = portfolios[portfolios["Portfolio Name"] == edit_name]["Tickers"].values[0]
-        new_tickers = st.text_area("New Tickers (comma-separated)", value=current_tickers)
-        edit_submitted = st.form_submit_button("Update Portfolio")
 
-        if edit_submitted:
-            if new_tickers:
-                update_portfolio(edit_name, new_tickers)
-                st.success(f"Portfolio '{edit_name}' updated!")
-                del st.session_state.edit_portfolio
-                st.experimental_rerun()  # Refresh the app to show updated portfolio list
-            else:
-                st.error("Please provide new ticker symbols.")
+    # Ensure that the portfolio exists in the DataFrame before proceeding
+    if portfolios[portfolios["Portfolio Name"] == st.session_state.edit_portfolio].empty:
+        st.error(f"Portfolio '{st.session_state.edit_portfolio}' not found.")
+    else:
+        with st.form("edit_form"):
+            edit_name = st.session_state.edit_portfolio
+            current_tickers = portfolios[portfolios["Portfolio Name"] == edit_name]["Tickers"].values[0]
+            new_tickers = st.text_area("New Tickers (comma-separated)", value=current_tickers)
+            edit_submitted = st.form_submit_button("Update Portfolio")
+
+            if edit_submitted:
+                if new_tickers:
+                    update_portfolio(edit_name, new_tickers)
+                    st.success(f"Portfolio '{edit_name}' updated!")
+                    st.session_state.edit_portfolio = None
+                    st.experimental_rerun()
+                else:
+                    st.error("Please provide new ticker symbols.")
+else:
+    st.write("No portfolio selected for editing.")
 
 # Display selected portfolio data
 if not portfolios.empty:
@@ -268,19 +208,6 @@ if not portfolios.empty:
     if selected_portfolio:
         tickers = portfolios[portfolios["Portfolio Name"] == selected_portfolio]["Tickers"].values[0]
         stock_data = fetch_stock_data(tickers)
-        #st.write(f"## Stock Data for {selected_portfolio}")
-        #st.dataframe(stock_data)
-
-        # Plot the data
-        #st.write("### Price Trends")
-        #plt.figure(figsize=(10, 5))
-        #for column in stock_data.columns:
-        #    plt.plot(stock_data.index, stock_data[column], label=column)
-        #plt.legend()
-        #plt.title(f"Stock Price Trends for {selected_portfolio}")
-        #plt.xlabel("Date")
-        #plt.ylabel("Adjusted Close Price")
-        #st.pyplot(plt)
 
         # Calculate returns
         returns = stock_data.pct_change().dropna()
@@ -295,12 +222,10 @@ if not portfolios.empty:
         # Calculate annualized standard deviation (volatility)
         st.write("### Annualized Standard Deviation (Volatility)")
         individual_asset_stds = []
-
-        # Calculate individual asset standard deviations
         for ticker in returns.columns:
             annualized_std = returns[ticker].std() * np.sqrt(252)
             individual_asset_stds.append(annualized_std)
-        
+
         average_asset_std = np.mean(individual_asset_stds)
         avg_corr = np.mean([corr_matrix.iloc[i, j] for i in range(len(corr_matrix)) for j in range(i+1, len(corr_matrix))])
 
@@ -818,62 +743,69 @@ if not portfolios.empty:
             st.pyplot(fig)
         
 
-# Section for computing and plotting the Holy Grail of Investing
+# Holy Grail Section
+
 st.header("Holy Grail of Investing")
 
 # User inputs for average correlation and asset volatility
 avg_correlation = st.number_input("Average Correlation", value=0.02, min_value=0.0, max_value=1.0, step=0.01)
 asset_volatility = st.number_input("Asset Volatility (Annualized)", value=0.45, min_value=0.0, max_value=1.0, step=0.01)
 
-# Calculate portfolio standard deviation for different numbers of assets
 num_assets_range = range(1, 26)
 portfolio_stds_user = [calculate_portfolio_std(n, avg_correlation, asset_volatility) for n in num_assets_range]
-
-# Calculate portfolio standard deviation for the selected portfolio's average correlation and volatility
-portfolio_stds_portfolio = [calculate_portfolio_std(n, avg_corr, average_asset_std) for n in num_assets_range]
-
-# Calculate the average annual return of the assets in the portfolio
-average_annual_return = returns.mean().mean() * 252
 
 # Calculate the Return to Risk Ratio
 def calculate_return_to_risk_ratio(return_rate, std_dev):
     return return_rate / std_dev
 
-return_to_risk_ratios = [calculate_return_to_risk_ratio(average_annual_return, std) for std in portfolio_stds_user]
+# Function to calculate rolling 12-month CAGR
+def calculate_rolling_cagr(returns, window):
+    rolling_cagr = (1 + returns).rolling(window=window).apply(lambda x: np.prod(x) ** (252/window) - 1)
+    return rolling_cagr
 
-# Calculate the probability of losing money in a given year
+# Function to calculate rolling Sharpe ratio
+def calculate_rolling_sharpe_ratio(returns, risk_free_rate, window):
+    excess_returns = returns - (risk_free_rate / 252)
+    rolling_sharpe = excess_returns.rolling(window=window).mean() / excess_returns.rolling(window=window).std() * np.sqrt(252)
+    return rolling_sharpe
+
 def calculate_probability_of_losing_money(return_to_risk_ratio):
     return norm.cdf(-return_to_risk_ratio)
 
-probability_of_losing_money = [calculate_probability_of_losing_money(rtr) for rtr in return_to_risk_ratios]
+if 'returns' in locals():
+    average_annual_return = returns.mean().mean() * 252
 
-# Plot the portfolio standard deviations
-fig, ax1 = plt.subplots()
+    portfolio_stds_portfolio = [calculate_portfolio_std(n, avg_corr, average_asset_std) for n in num_assets_range]
 
-# Primary y-axis: Portfolio Standard Deviation
-ax1.plot(num_assets_range, np.array(portfolio_stds_user) * 100, label=f"User: Correlation = {avg_correlation}, Asset Volatility = {asset_volatility}")
-ax1.plot(num_assets_range, np.array(portfolio_stds_portfolio) * 100, label=f"Portfolio: Correlation = {avg_corr:.2f}, Asset Volatility = {average_asset_std:.2%}", linestyle='--')
-ax1.set_xlabel("Number of Assets in Portfolio")
-ax1.set_ylabel("Portfolio Standard Deviation (%)")
-ax1.set_title("Portfolio Standard Deviation (assets equal in weight, variance and covariance)")
-ax1.legend(loc="upper right")
-ax1.grid(True)
+    return_to_risk_ratios = [calculate_return_to_risk_ratio(average_annual_return, std) for std in portfolio_stds_user]
+    probability_of_losing_money = [calculate_probability_of_losing_money(rtr) for rtr in return_to_risk_ratios]
 
-# Secondary y-axis: Return to Risk Ratio (transparent line)
-ax2 = ax1.twinx()
-ax2.plot(num_assets_range, return_to_risk_ratios, color='tab:green', alpha=0)  # Make the line fully transparent
-ax2.set_ylabel("Return to Risk Ratio", color='tab:green')
-ax2.tick_params(axis='y', labelcolor='tab:green')
-ax2.invert_yaxis()  # Invert the y-axis for Return to Risk Ratio
+    fig, ax1 = plt.subplots()
 
-# Third y-axis: Probability of Losing Money in a Given Year (transparent line)
-ax3 = ax1.twinx()
-rspine = ax3.spines['right']
-rspine.set_position(('axes', 1.15))
-ax3.plot(num_assets_range, np.array(probability_of_losing_money) * 100, color='tab:red', alpha=0)  # Make the line fully transparent
-ax3.set_ylabel("Probability of Losing Money (%)", color='tab:red')
-ax3.tick_params(axis='y', labelcolor='tab:red')
-ax3.grid(False)
+    ax1.plot(num_assets_range, np.array(portfolio_stds_user) * 100, label=f"User: Correlation = {avg_correlation}, Asset Volatility = {asset_volatility}")
+    ax1.plot(num_assets_range, np.array(portfolio_stds_portfolio) * 100, label=f"Portfolio: Correlation = {avg_corr:.2f}, Asset Volatility = {average_asset_std:.2%}", linestyle='--')
+    ax1.set_xlabel("Number of Assets in Portfolio")
+    ax1.set_ylabel("Portfolio Standard Deviation (%)")
+    ax1.set_title("Portfolio Standard Deviation (assets equal in weight, variance and covariance)")
+    ax1.legend(loc="upper right")
+    ax1.grid(True)
 
-fig.tight_layout()
-st.pyplot(fig)
+    ax2 = ax1.twinx()
+    ax2.plot(num_assets_range, return_to_risk_ratios, color='tab:green', alpha=0)
+    ax2.set_ylabel("Return to Risk Ratio", color='tab:green')
+    ax2.tick_params(axis='y', labelcolor='tab:green')
+    ax2.invert_yaxis()
+
+    ax3 = ax1.twinx()
+    rspine = ax3.spines['right']
+    rspine.set_position(('axes', 1.15))
+    ax3.plot(num_assets_range, np.array(probability_of_losing_money) * 100, color='tab:red', alpha=0)
+    ax3.set_ylabel("Probability of Losing Money (%)", color='tab:red')
+    ax3.tick_params(axis='y', labelcolor='tab:red')
+    ax3.grid(False)
+
+    fig.tight_layout()
+    st.pyplot(fig)
+
+else:
+    st.warning("Please select a portfolio and calculate its returns before using this section.")
