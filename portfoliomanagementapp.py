@@ -15,6 +15,12 @@ warnings.filterwarnings("ignore")
 # Set up the app
 st.title("Portfolio Management and Analysis App")
 
+# Subheader with links
+st.markdown("""
+**App created by [Gonzalo Abduca](https://www.linkedin.com/in/gonzaloabduca)**  
+[Watch my other apps](https://gonzaloabduca.github.io/GonzaloPortfolio.github.io/) | [Contact me on LinkedIn](https://www.linkedin.com/in/gonzaloabduca)
+""")
+
 # Function to load existing portfolios
 def load_portfolios():
     if os.path.exists("portfolios.csv"):
